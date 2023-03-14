@@ -8,29 +8,6 @@ import torch.nn as nn
 from functools import partial
 from torchvision.models import resnet
 
-# Define base encoder
-# SplitBatchNorm: simulate multi-gpu behavior of BatchNorm in one gpu by splitting alone the batch dimension
-class SplitBatchNorm(nn.BatchNorm2d):
-    def __init__(self, num_features, num_splits, **kw):
-        super().__init__(num_features, **kw)
-        self.num_splits = num_splits
-        
-    def forward(self, input):
-        N, C, H, W = input.shape
-        if self.training or not self.track_running_stats:
-            running_mean_split = self.running_mean.repeat(self.num_splits)
-            running_var_split = self.running_var.repeat(self.num_splits)
-            outcome = nn.functional.batch_norm(
-                input.view(-1, C * self.num_splits, H, W), running_mean_split, running_var_split, 
-                self.weight.repeat(self.num_splits), self.bias.repeat(self.num_splits),
-                True, self.momentum, self.eps).view(N, C, H, W)
-            self.running_mean.data.copy_(running_mean_split.view(self.num_splits, C).mean(dim=0))
-            self.running_var.data.copy_(running_var_split.view(self.num_splits, C).mean(dim=0))
-            return outcome
-        else:
-            return nn.functional.batch_norm(
-                input, self.running_mean, self.running_var, 
-                self.weight, self.bias, False, self.momentum, self.eps)
 
 class ModelBase(nn.Module):
     """
@@ -83,6 +60,9 @@ class MoCo(nn.Module):
         self.T = T
 
         # create the encoders
+        # self.encoder_q = ModelBase(feature_dim=dim, arch=arch, bn_splits=bn_splits)
+        # self.encoder_k = ModelBase(feature_dim=dim, arch=arch, bn_splits=bn_splits)
+
         # num_classes is the output fc dimension
         resnet_arch = getattr(resnet, arch)
         net = resnet_arch(num_classes=dim)
@@ -122,25 +102,25 @@ class MoCo(nn.Module):
 
         self.queue_ptr[0] = ptr
 
-    @torch.no_grad()
-    def _batch_shuffle_single_gpu(self, x):
-        """
-        Batch shuffle, for making use of BatchNorm.
-        """
-        # random shuffle index
-        idx_shuffle = torch.randperm(x.shape[0]).cuda()
+    # @torch.no_grad()
+    # def _batch_shuffle_single_gpu(self, x):
+    #    """
+    #    Batch shuffle, for making use of BatchNorm.
+    #    """
+    #    #random shuffle index
+    #    idx_shuffle = torch.randperm(x.shape[0]).cuda()
 
-        # index for restoring
-        idx_unshuffle = torch.argsort(idx_shuffle)
+    #    #index for restoring
+    #    idx_unshuffle = torch.argsort(idx_shuffle)
 
-        return x[idx_shuffle], idx_unshuffle
+    #    return x[idx_shuffle], idx_unshuffle
 
-    @torch.no_grad()
-    def _batch_unshuffle_single_gpu(self, x, idx_unshuffle):
-        """
-        Undo batch shuffle.
-        """
-        return x[idx_unshuffle]
+    # @torch.no_grad()
+    # def _batch_unshuffle_single_gpu(self, x, idx_unshuffle):
+    #     """
+    #     Undo batch shuffle.
+    #     """
+    #     return x[idx_unshuffle]
 
     def forward(self, im_q, im_k):
         """
@@ -160,13 +140,13 @@ class MoCo(nn.Module):
             self._momentum_update_key_encoder()  # update the key encoder
 
             # shuffle for making use of BN
-            im_k, idx_unshuffle = self._batch_shuffle_single_gpu(im_k)
+            #im_k, idx_unshuffle = self._batch_shuffle_single_gpu(im_k)
 
             k = self.encoder_k(im_k)  # keys: NxC
             k = nn.functional.normalize(k, dim=1)
 
             # undo shuffle
-            k = self._batch_unshuffle_single_gpu(k, idx_unshuffle)
+            #k = self._batch_unshuffle_single_gpu(k, idx_unshuffle)
 
         # compute logits
         # Einstein sum is more intuitive

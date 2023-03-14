@@ -37,7 +37,6 @@ model_names = sorted(
 parser = argparse.ArgumentParser(description="PyTorch ImageNet Training")
 parser.add_argument("data", metavar="DIR", help="path to dataset")
 parser.add_argument("-a", "--arch", metavar="ARCH", default="resnet18", help="model architecture: " + " | ".join(model_names) + " (default: resnet50)",) #choices=model_names, 
-#parser.add_argument("-j", "--workers", default=32, type=int,metavar="N", help="number of data loading workers (default: 32)",)
 parser.add_argument("--epochs", default=200, type=int, metavar="N", help="number of total epochs to run")
 parser.add_argument("--start-epoch", default=0, type=int, metavar="N", help="manual epoch number (useful on restarts)",)
 parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N", help="mini-batch size (default: 256), this is the total ""batch size of all GPUs on the current node when ""using Data Parallel or Distributed Data Parallel",)
@@ -47,13 +46,8 @@ parser.add_argument("--momentum", default=0.9, type=float, metavar="M", help="mo
 parser.add_argument("--wd", "--weight-decay", default=5e-4, type=float, metavar="W", help="weight decay (default: 1e-4)", dest="weight_decay",)
 parser.add_argument("-p", "--print-freq", default=10, type=int, metavar="N", help="print frequency (default: 10)",)
 parser.add_argument("--resume", default="", type=str, metavar="PATH", help="path to latest checkpoint (default: none)",)
-#parser.add_argument("--world-size", default=-1, type=int, help="number of nodes for distributed training",)
-#parser.add_argument("--rank", default=-1, type=int, help="node rank for distributed training")
-#parser.add_argument("--dist-url", default="tcp://224.66.41.62:23456", type=str, help="url used to set up distributed training",)
-#parser.add_argument("--dist-backend", default="nccl", type=str, help="distributed backend")
 parser.add_argument("--seed", default=None, type=int, help="seed for initializing training. ")
 parser.add_argument("--gpu", default=None, type=int, help="GPU id to use.")
-#parser.add_argument("--multiprocessing-distributed", action="store_true", help="Use multi-processing distributed training to launch ""N processes per node, which has N GPUs. This is the ""fastest way to use PyTorch for either single node or ""multi node data parallel training",)
 
 # moco specific configs:
 parser.add_argument("--moco-dim", default=128, type=int, help="feature dimension (default: 128)")
@@ -61,12 +55,6 @@ parser.add_argument("--moco-k", default=4096, type=int, help="queue size; number
 parser.add_argument("--moco-m", default=0.99, type=float, help="moco momentum of updating key encoder (default: 0.999)",)
 parser.add_argument("--moco-t", default=0.1, type=float, help="softmax temperature (default: 0.07)")
 
-parser.add_argument("--bn-splits", default=8, type=int, help="simulate multi-gpu behavior of BatchNorm in one gpu; 1 is SyncBatchNorm in multi-gpu")
-parser.add_argument("--symmetric", action="store_true", help="use a symmetric loss function that backprops to both crops")
-
-# options for moco v2
-#parser.add_argument("--mlp", action="store_true", help="use mlp head")
-#parser.add_argument("--aug-plus", action="store_true", help="use moco v2 data augmentation")
 parser.add_argument("--cos", action="store_true", help="use cosine lr schedule")
 
 def main():
@@ -101,7 +89,6 @@ def main():
         m=args.moco_m,
         T=args.moco_t,
         arch=args.arch,
-        bn_splits=args.bn_splits,
     )
     print(model)
     model.cuda()
@@ -162,7 +149,6 @@ def main():
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
-
     
         save_checkpoint(
             {
@@ -172,11 +158,11 @@ def main():
                 "optimizer": optimizer.state_dict(),
             },
             is_best=False,
-            filename="checkpoint_{:04d}.pth.tar".format(epoch),
+            filename="checkpoint_{:04d}.pth".format(epoch),
         )
 
 # Define train (for one epoch)
-def train(train_loader, model, criterion, optimizer, epoch, args):
+def train(train_loader, model, criterion, optimizer,  epoch, args):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e")
@@ -224,10 +210,10 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
             progress.display(i)
 
 
-def save_checkpoint(state, is_best, filename="checkpoint.pth.tar"):
+def save_checkpoint(state, is_best, filename="checkpoint.pth"):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, "model_best.pth.tar")
+        shutil.copyfile(filename, "model_best.pth")
 
 class CIFAR10Pair(datasets.CIFAR10):
     """CIFAR10 Dataset.

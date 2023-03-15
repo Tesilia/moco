@@ -39,7 +39,7 @@ parser.add_argument("data", metavar="DIR", help="path to dataset")
 parser.add_argument("-a", "--arch", metavar="ARCH", default="resnet18", help="model architecture: " + " | ".join(model_names) + " (default: resnet50)",) #choices=model_names, 
 parser.add_argument("--epochs", default=200, type=int, metavar="N", help="number of total epochs to run")
 parser.add_argument("--start-epoch", default=0, type=int, metavar="N", help="manual epoch number (useful on restarts)",)
-parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N", help="mini-batch size (default: 256), this is the total ""batch size of all GPUs on the current node when ""using Data Parallel or Distributed Data Parallel",)
+parser.add_argument("-b", "--batch-size", default=32, type=int, metavar="N", help="mini-batch size (default: 256), this is the total ""batch size of all GPUs on the current node when ""using Data Parallel or Distributed Data Parallel",)
 parser.add_argument("--lr","--learning-rate", default=0.03, type=float, metavar="LR", help="initial learning rate", dest="lr",)#default 0.03
 parser.add_argument("--schedule", default=[120, 160], nargs="*", type=int, help="learning rate schedule (when to drop lr by 10x)",)
 parser.add_argument("--momentum", default=0.9, type=float, metavar="M", help="momentum of SGD solver")
@@ -54,7 +54,7 @@ parser.add_argument("--moco-dim", default=128, type=int, help="feature dimension
 parser.add_argument("--moco-k", default=4096, type=int, help="queue size; number of negative keys (default: 65536)",)
 parser.add_argument("--moco-m", default=0.99, type=float, help="moco momentum of updating key encoder (default: 0.999)",)
 parser.add_argument("--moco-t", default=0.1, type=float, help="softmax temperature (default: 0.07)")
-
+parser.add_argument("--bn-splits", default=2, type=int, help="simulate multi-gpu behavior of BatchNorm in one gpu; 1 is SyncBatchNorm in multi-gpu")
 parser.add_argument("--cos", action="store_true", help="use cosine lr schedule")
 
 def main():
@@ -89,6 +89,7 @@ def main():
         m=args.moco_m,
         T=args.moco_t,
         arch=args.arch,
+        bn_splits= args.bn_splits,
     )
     print(model)
     model.cuda()
@@ -165,7 +166,7 @@ def main():
 def train(train_loader, model, criterion, optimizer,  epoch, args):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
-    losses = AverageMeter("Loss", ":.4e")
+    losses = AverageMeter("Loss", ":2.4f")
     top1 = AverageMeter("Acc@1", ":6.2f")
     top5 = AverageMeter("Acc@5", ":6.2f")
     progress = ProgressMeter(
@@ -189,7 +190,6 @@ def train(train_loader, model, criterion, optimizer,  epoch, args):
         # compute output
         output, target = model(im_q=images[0], im_k=images[1])
         loss = criterion(output, target)
-
         # acc1/acc5 are (K+1)-way contrast classifier accuracy
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -208,7 +208,7 @@ def train(train_loader, model, criterion, optimizer,  epoch, args):
 
         if i % args.print_freq == 0:
             progress.display(i)
-
+    #TODO: log average/mean of losses 
 
 def save_checkpoint(state, is_best, filename="checkpoint.pth"):
     torch.save(state, filename)

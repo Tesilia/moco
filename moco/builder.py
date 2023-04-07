@@ -35,7 +35,7 @@ class SplitBatchNorm(nn.BatchNorm2d):
 # Define MoCo Wrapper
 class MoCo(nn.Module):
 
-    def __init__(self, dim=128, K=4096, m=0.99, T=0.1, arch='resnet18', bn_splits=2):
+    def __init__(self, base_encoder, dim=128, K=4096, m=0.99, T=0.1, arch='resnet18', bn_splits=2):
         """
         dim: feature dimension (default: 128)
         K: queue size; number of negative keys (default: 65536)
@@ -52,9 +52,8 @@ class MoCo(nn.Module):
         # create the encoders
         # num_classes is the output fc dimension
         norm_layer = partial(SplitBatchNorm, num_splits=bn_splits) if bn_splits > 1 else nn.BatchNorm2d
-        resnet_arch = getattr(resnet, arch)
-        net = resnet_arch(num_classes=dim, norm_layer=norm_layer)
-        net2 = resnet_arch(num_classes=dim, norm_layer=norm_layer)
+        net = base_encoder(num_classes=dim, norm_layer=norm_layer)
+        net2 = base_encoder(num_classes=dim, norm_layer=norm_layer)
         
         net.fc = nn.Sequential(nn.Linear(512, 256), nn.ReLU(inplace=True), nn.Linear(256, 128))
         net2.fc = nn.Sequential(nn.Linear(512, 256), nn.ReLU(inplace=True), nn.Linear(256, 128))
